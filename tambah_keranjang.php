@@ -2,42 +2,45 @@
 session_start();
 include 'config/koneksi.php';
 
-if (!isset($_SESSION['id_user'])) {
+// Jika user belum login
+if (!isset($_SESSION['role']) || $_SESSION['role'] != 'pelanggan') {
     header("Location: login.php");
     exit;
 }
 
-$id_user = $_SESSION['id_user'];
-$id_produk = $_POST['id_produk'];
-$jumlah = $_POST['jumlah'];
-$catatan = mysqli_real_escape_string($conn, $_POST['catatan']);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
-// ambil nama produk dari tabel produk
-$getNama = mysqli_query($conn, "SELECT nama_produk FROM produk WHERE id_produk='$id_produk'");
-$namaData = mysqli_fetch_assoc($getNama);
-$nama_produk = $namaData['nama_produk'];
+    $id_produk = $_POST['id_produk'];
+    $jumlah = $_POST['jumlah'];
+    $catatan = $_POST['catatan'];
 
-// cek apakah produk sudah ada di keranjang
-$cek = mysqli_query($conn, "SELECT * FROM keranjang WHERE id_user='$id_user' AND id_produk='$id_produk'");
-if (mysqli_num_rows($cek) > 0) {
-    $row = mysqli_fetch_assoc($cek);
-    $jumlah_baru = $row['jumlah'] + $jumlah;
+    // Ambil data produk dari database
+    $result = mysqli_query($conn, "SELECT * FROM produk WHERE id_produk='$id_produk'");
+    $produk = mysqli_fetch_assoc($result);
 
-    if (!empty($catatan)) {
-        mysqli_query($conn, "UPDATE keranjang 
-                             SET jumlah='$jumlah_baru', catatan='$catatan'
-                             WHERE id_user='$id_user' AND id_produk='$id_produk'");
-    } else {
-        mysqli_query($conn, "UPDATE keranjang 
-                             SET jumlah='$jumlah_baru'
-                             WHERE id_user='$id_user' AND id_produk='$id_produk'");
+    if (!$produk) {
+        die("Produk tidak ditemukan!");
     }
 
-} else {
-    mysqli_query($conn, "INSERT INTO keranjang (id_user, id_produk, nama_produk, jumlah, catatan)
-                         VALUES ('$id_user', '$id_produk', '$nama_produk', '$jumlah', '$catatan')");
-}
+    // Jika keranjang belum ada, buat
+    if (!isset($_SESSION['keranjang'])) {
+        $_SESSION['keranjang'] = [];
+    }
 
-header("Location: dashboard_pelanggan.php");
-exit;
+    // Jika produk sudah ada di keranjang → jumlah ditambah
+    if (isset($_SESSION['keranjang'][$id_produk])) {
+        $_SESSION['keranjang'][$id_produk]['jumlah'] += $jumlah;
+    } else {
+        // Masukkan produk ke keranjang
+        $_SESSION['keranjang'][$id_produk] = [
+            'nama' => $produk['nama_produk'],
+            'harga' => $produk['harga'],
+            'jumlah' => $jumlah,
+            'keterangan' => $catatan
+        ];
+    }
+
+    header("Location: dashboard_pelanggan.php?success=1");
+    exit;
+}
 ?>
